@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Upload Digit Image</title>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        background-color: #f0f0f0;
+        margin: 0;
+        padding: 0;
+      }
+
+      h1 {
+        text-align: center;
+      }
+
+      #uploadInput {
+        display: block;
+        margin: 20px auto;
+      }
+
+      button {
+        display: block;
+        margin: 10px auto;
+        padding: 10px 20px;
+        background-color: #4f6951;
+        color: #fff;
+        border: none;
+        cursor: pointer;
+        border-radius: 5px;
+      }
+
+      button:hover {
+        background-color: #137a0a;
+      }
+
+      #uploadBtn {
+        background-color: #075e2b; /* Màu xanh */
+        color: #fff; /* Màu trắng */
+      }
+      #clearBtn {
+        background-color: #6d111a; /* Màu đỏ */
+        color: #fff; /* Màu trắng */
+      }
+
+      #drawingCanvas {
+        display: block;
+        margin: 20px auto;
+        border: 1px solid #000;
+      }
+
+      #result {
+        text-align: center;
+        margin-top: 20px;
+        font-size: 20px;
+        font-weight: 1000;
+      }
+
+      img {
+        width: 50%;
+        height: auto;
+        display: block;
+        margin: auto;
+        margin-top: 20px;
+      }
+      .container {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr); /* Chia thành hai cột bằng nhau */
+        gap: 20px; /* Khoảng cách giữa hai cột */
+        margin: 20px;
+        width: 80%;
+      }
+      .column {
+        padding: 20px;
+        background-color: #f0f0f0;
+        border-radius: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Predicted Digit Image</h1>
+    <div class="container">
+      <div class="column">
+        <span>
+          <h4>Upload a picture of one digit</h4>
+          <input type="file" id="uploadInput" accept="image/*" />
+          <button id="uploadBtn" onclick="uploadImage()">Upload</button>
+          <h4>Or draw one digit</h4>
+          <canvas id="drawingCanvas" width="200" height="200"></canvas>
+          <div class="container">
+            <div class="column">
+              <button id="uploadBtn" onclick="uploadDrawing()">Upload Drawing</button>
+            </div>
+            <div class="column">
+              <button id="clearBtn" onclick="clearCanvas()">Clear Canvas</button>
+            </div>
+          </div>
+        </span>
+      </div>
+      <div class="column">
+        <span>
+          <div id="result"></div>
+          <img id="processedImage" src="" alt="Processed Image" />
+        </span>
+      </div>
+    </div>
+
+    <script>
+      // Function to clear canvas and draw a white rectangle when the page loads
+      function initializeCanvas() {
+        var canvas = document.getElementById("drawingCanvas");
+        var ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#fff"; // Fill with white color
+        ctx.fillRect(0, 0, canvas.width, canvas.height); // Fill the entire canvas
+      }
+
+      // Call the initializeCanvas function when the page loads
+      window.onload = function () {
+        initializeCanvas();
+      };
+
+      var isDrawing = false;
+      var lastX = 0;
+      var lastY = 0;
+
+      // Function to start drawing
+      function startDrawing(e) {
+        if (e.type === "mousedown") {
+          isDrawing = true;
+          [lastX, lastY] = [e.offsetX, e.offsetY];
+        } else if (e.type === "touchstart") {
+          isDrawing = true;
+          var rect = canvas.getBoundingClientRect();
+          [lastX, lastY] = [e.touches[0].clientX - rect.left, e.touches[0].clientY - rect.top];
+        }
+      }
+
+      // Function to draw
+      function draw(e) {
+        if (!isDrawing) return;
+        var canvas = document.getElementById("drawingCanvas");
+        var ctx = canvas.getContext("2d");
+        var rect = canvas.getBoundingClientRect();
+
+        if (e.type === "mousemove") {
+          var x = e.offsetX;
+          var y = e.offsetY;
+        } else if (e.type === "touchmove") {
+          var x = e.touches[0].clientX - rect.left;
+          var y = e.touches[0].clientY - rect.top;
+        }
+
+        ctx.beginPath();
+        ctx.moveTo(lastX, lastY);
+        ctx.lineTo(x, y);
+        ctx.strokeStyle = "#000";
+        ctx.lineWidth = 12;
+        ctx.lineCap = "round";
+        ctx.stroke();
+        [lastX, lastY] = [x, y];
+      }
+
+      // Function to stop drawing
+      function stopDrawing() {
+        isDrawing = false;
+      }
+
+      // Attach event listeners to the canvas
+      var canvas = document.getElementById("drawingCanvas");
+      canvas.addEventListener("mousedown", startDrawing);
+      canvas.addEventListener("mousemove", draw);
+      canvas.addEventListener("mouseup", stopDrawing);
+      canvas.addEventListener("touchstart", startDrawing);
+      canvas.addEventListener("touchmove", draw);
+      canvas.addEventListener("touchend", stopDrawing);
+
+      // Function to prevent default behavior
+      function preventDefault(e) {
+        e.preventDefault();
+      }
+
+      // Attach event listeners to prevent default behavior for touch events
+      canvas.addEventListener("touchstart", preventDefault, { passive: false });
+      canvas.addEventListener("touchmove", preventDefault, { passive: false });
+
+      // Function to upload drawing
+      function uploadDrawing() {
+        var canvas = document.getElementById("drawingCanvas");
+        var imageDataURL = canvas.toDataURL(); // Convert canvas drawing to image data URL
+
+        // Send the image data URL to the server
+        $.ajax({
+          type: "POST",
+          url: "/upload_drawing",
+          data: { imageData: imageDataURL },
+          success: function (response) {
+            document.getElementById("result").innerText = "Predicted digit: " + response.digit;
+            var processedImagePath = "static/processed_image.jpg?" + new Date().getTime(); // Add a random parameter to force image reload
+            document.getElementById("processedImage").src = processedImagePath; // Update image source
+          },
+          error: function (xhr, status, error) {
+            console.error(error);
+          },
+        });
+      }
+
+      // Function to upload image
+      function uploadImage() {
+        var formData = new FormData();
+        var fileInput = document.getElementById("uploadInput");
+        var file = fileInput.files[0];
+        formData.append("file", file);
+
+        // Send the image file to the server
+        $.ajax({
+          type: "POST",
+          url: "/upload",
+          data: formData,
+          contentType: false,
+          processData: false,
+          success: function (response) {
+            document.getElementById("result").innerText = "Predicted digit: " + response.digit;
+            var processedImagePath = "static/processed_image.jpg?" + new Date().getTime(); // Add a random parameter to force image reload
+            document.getElementById("processedImage").src = processedImagePath; // Update image source
+          },
+          error: function (xhr, status, error) {
+            console.error(error);
+          },
+        });
+      }
+
+      // Function to clear canvas
+      function clearCanvas() {
+        var canvas = document.getElementById("drawingCanvas");
+        var ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#fff"; // Fill with white color
+        ctx.fillRect(0, 0, canvas.width, canvas.height); // Fill the entire canvas
+      }
+    </script>
+  </body>
+</html>
